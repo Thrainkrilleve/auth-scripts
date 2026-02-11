@@ -1,0 +1,29 @@
+# Add these volume mounts to your docker-compose.yml
+# 
+# Location: Under x-allianceauth-base > volumes (around line 11)
+#
+# Example:
+# x-allianceauth-base: &allianceauth-base
+#   volumes:
+#     - ./conf/local.py:/home/allianceauth/myauth/myauth/settings/local.py
+#     - ./conf/celery.py:/home/allianceauth/myauth/myauth/celery.py
+#     - ./conf/urls.py:/home/allianceauth/myauth/myauth/urls.py
+#     # Add these lines:
+#     - ./recruit_me_custom/recruit_me.py:/home/allianceauth/.local/lib/python3.11/site-packages/aadiscordbot/cogs/recruit_me.py
+#     - ./miningtaxes_fix/tasks.py:/home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py
+#     - ./aa-customizations/discord_fix/tasks.py:/home/allianceauth/.local/lib/python3.11/site-packages/allianceauth/services/modules/discord/tasks.py
+#     - ./aa-customizations/celeryanalytics_fix/asset-manifest.json:/var/www/myauth/static/celeryanalytics/asset-manifest.json
+#     - ./conf/memory_check.sh:/memory_check.sh
+
+volumes:
+  # Discord Recruit Me - Custom cog with multi-role support
+  - ./recruit_me_custom/recruit_me.py:/home/allianceauth/.local/lib/python3.11/site-packages/aadiscordbot/cogs/recruit_me.py
+  
+  # Miningtaxes - Type 90665 fix for price updates
+  - ./miningtaxes_fix/tasks.py:/home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py
+  
+  # Discord Service - Fix for 404 "Unknown Member" errors during nickname sync
+  - ./aa-customizations/discord_fix/tasks.py:/home/allianceauth/.local/lib/python3.11/site-packages/allianceauth/services/modules/discord/tasks.py
+  
+  # Celeryanalytics - Fix for missing asset-manifest.json in PyPI package
+  - ./aa-customizations/celeryanalytics_fix/asset-manifest.json:/var/www/myauth/static/celeryanalytics/asset-manifest.json
