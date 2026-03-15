@@ -49,10 +49,12 @@ def discord_bot_active():
 
 
 if discord_bot_active():
-    import aadiscordbot
+    import aadiscordbot.tasks
     from aadiscordbot.cogs.utils.exceptions import NotAuthenticated
     from aadiscordbot.utils.auth import get_discord_user_id
     from discord import Color, Embed
+
+logger = get_extension_logger(__name__)
 
 def send_discord_dm(user, title, message, color):
     if discord_bot_active():
@@ -63,7 +65,7 @@ def send_discord_dm(user, title, message, color):
                 color=color
             )
             try:
-                aadiscordbot.tasks.send_message(
+                aadiscordbot.tasks.send_message.delay(
                     user_id=get_discord_user_id(user),
                     embed=e
                 )
@@ -77,7 +79,6 @@ def send_discord_dm(user, title, message, color):
             logger.error(e, exc_info=1)
             pass
 
-logger = get_extension_logger(__name__)
 TASK_DEFAULT_KWARGS = {"time_limit": MININGTAXES_TASKS_TIME_LIMIT, "max_retries": 3}
 
 
@@ -152,22 +153,28 @@ def notify_current_taxes_threshold(self):
             try:
                 u = User.objects.get(id=row["user"])
             except Exception:
-                print(f"could not find user: {row['user']}")
+                logger.warning(f"could not find user: {row['user']}")
                 continue
             title = "Taxes are due!"
             message = MININGTAXES_PING_CURRENT_MSG.format(row["balance"])
             notify(user=u, title=title, message=message, level="INFO")
+            send_discord_dm(
+                u,
+                title,
+                message,
+                Color.yellow()
+            )
 
 
 @shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
 def apply_interest(self):
-    settings = Settings.load()
+    tax_settings = Settings.load()
     user2taxes = calctaxes()
 
     for u in user2taxes.keys():
         if user2taxes[u][0] <= 0.01:
             continue
-        interest = round(user2taxes[u][0] * settings.interest_rate / 100.0, 2)
+        interest = round(user2taxes[u][0] * tax_settings.interest_rate / 100.0, 2)
         if interest > MININGTAXES_PING_THRESHOLD:
             user2taxes[u][2].give_credit(-1.0 * interest, "interest")
             title = "Taxes are overdue, interest has been applied!"

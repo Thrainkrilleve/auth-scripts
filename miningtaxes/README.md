@@ -1,168 +1,91 @@
-# Miningtaxes Enhanced - Type 90665 Fix + Character Tracking
+# Miningtaxes Patch - Discord Notifications + Type 90665 Fix
 
-## 🔴 The Problems
+This is a drop-in replacement for `tasks.py` from the [aa-miningtaxes](https://github.com/pvyParts/aa-miningtaxes) plugin. It adds Discord DM notifications for tax reminders and fixes a price update crash caused by a bad CCP item type.
 
-### Problem 1: Price Update Crashes
-Miningtaxes price updates crash with:
-```
-HTTPNotFound: 404 Not Found - Type not found
-```
+## ✅ What This Patch Does
 
-**Why?** Type 90665 is a CCP test item that doesn't exist in ESI but may be in your database.
+### Feature: Discord DM Notifications
+Tax reminder tasks now send a Discord DM to users in addition to the standard Alliance Auth notification. Requires [allianceauth-discordbot](https://github.com/pvyParts/allianceauth-discordbot) (`aadiscordbot`) to be installed. If it is not installed or not in `INSTALLED_APPS`, the patch falls back silently to Alliance Auth notifications only — nothing breaks.
 
-### Problem 2: Lost Tax Donations
-Tax donations from unregistered alts or characters not in AllianceAuth are lost and never credited.
+| Task | Trigger | Discord Color |
+|---|---|---|
+| `notify_taxes_due` | Balance exceeds `MININGTAXES_PING_THRESHOLD` | 🟡 Yellow |
+| `notify_second_taxes_due` | Balance exceeds `MININGTAXES_PING_THRESHOLD` (second reminder) | 🟠 Orange |
+| `notify_current_taxes_threshold` | Balance exceeds `MININGTAXES_PING_CURRENT_THRESHOLD` | 🟡 Yellow |
+| `apply_interest` | Interest charged on overdue balance | 🔴 Red |
 
-**Why?** The system only matches by ESI character ID. If the character isn't registered, donations are silently ignored.
-
----
-
-## ✅ The Solutions
-
-### Fix 1: Skip Invalid Type IDs
-We patched `tasks.py` to skip invalid type IDs and handle 404 errors gracefully.
-
-### Fix 2: Character Name Fallback Matching
-When character ID matching fails, the system now:
-- Parses character names from the donation reason field
-- Attempts to match against registered characters
-- Logs unmatched donations for admin review
-
-**Player instructions updated:** Players must now include their character name in the donation reason:
-- Format: `phrase CharacterName` (e.g., "TAX JohnDoe")
-- Case insensitive
-- Works with partial matches if name is truncated
+### Fix: Type 90665 Price Crash
+Price update tasks no longer crash when type ID `90665` ("QA Badly Authored Prismaticite") is in the database. This CCP test item has no valid ESI entry and previously caused the entire price update to fail with a 404 error. It is now silently skipped inline.
 
 ---
 
-## 📥 Installation (Volume Mount - Recommended)
+## 📋 Requirements
 
-### Step 1: Copy the patched file
+- [aa-miningtaxes](https://github.com/pvyParts/aa-miningtaxes) installed
+- For Discord DMs: [allianceauth-discordbot](https://github.com/pvyParts/allianceauth-discordbot) installed and `aadiscordbot` added to `INSTALLED_APPS`
+- Users must have their Discord account linked in Alliance Auth to receive DMs
 
+---
+
+## 📥 Installation (Docker Volume Mount)
+
+### Step 1: Place the patched file
+
+Put this `tasks.py` somewhere your Docker Compose can reach it, e.g.:
+
+```
 /your-auth-folder/
 ├── docker-compose.yml
-├── miningtaxes_fix/
-│   └── tasks.py    (the enhanced patched file)
+├── miningtaxes/
+│   └── tasks.py    ← this file
+```
 
-### Step 2: Edit docker-compose.yml
-Add this line to the `volumes:` section (around line 11):
-```yaml
-### Step 3: Update FAQ template (important for character tracking)
-Replace the FAQ template to update player instructions:
+### Step 2: Add a volume mount in docker-compose.yml
+
 ```yaml
 volumes:
   - ./conf/local.py:/home/allianceauth/myauth/myauth/settings/local.py
-  - ./miningtaxes_fix/tasks.py:/home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py
-  - ./templates/miningtaxes/faq.html:/home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/templates/miningtaxes/faq.html
+  - ./miningtaxes/tasks.py:/home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py
 ```
 
-Copy the updated FAQ template:
-```bash
-cp aa-miningtaxes-master/miningtaxes/templates/miningtaxes/faq.html templates/miningtaxes/
-```
+> **Note:** Adjust the Python version path (`python3.11`) to match what's in your container. You can check with:
+> ```bash
+> docker exec allianceauth_gunicorn python --version
+> ```
 
-### Step 4: Configure Settings in conf/local.py
-**IMPORTANT**: Keep the phrase short (3-5 characters) to leave room for character names:
-```python
-# Miningtaxes Settings
-MININGTAXES_PHRASE = "TAX"  # Short phrase leaves room for character name
-```
+### Step 3: Restart
 
-### Step 5: Restart
 ```bash
 docker compose restart
 ```
 
-✅ **Done!** The fixes persist across restarts and rebuilds.
+The patch will persist across restarts and container rebuilds as long as the volume mount is in place.
 
 ---
 
 ## 🔍 Verify It Works
 
-### Check Price Updates
+### Confirm the patch is loaded
+```bash
+docker exec allianceauth_gunicorn grep "discord_bot_active" /home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py
+docker exec allianceauth_gunicorn grep "90665" /home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py
+```
+
+### Check Discord DM logs
+```bash
+docker logs allianceauth_worker_beat | grep "sent discord ping"
+docker logs allianceauth_worker_beat | grep "Unable to ping"
+```
+
+### Check price update logs
 ```bash
 docker logs allianceauth_worker_beat | grep miningtaxes
 ```
 
-### Confirm Patch Loaded
-```bash
-docker exec allianceauth_gunicorn grep "INVALID_TYPE_IDS" /home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py
-docker exec allianceauth_gunicorn grep "_match_character_by_name" /home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py
-```
-
-### Monitor Unmatched Donations
-```bash
-docker logs allianceauth_worker_beat | grep "Unmatched:"
-```
-
----
-
-## 👥 Player Instructions
-
-Players should now format donations as: **`phrase CharacterName`**
-
-**Examples:**
-- `TAX JohnDoe`
-- `JohnDoe TAX`
-- `tax john doe` (case insensitive)
-
-**Important Notes:**
-- Total length limited to 32 characters (reason field limit)
-- Use short phrases (TAX, MOON) to maximize space for character names
-- Character name is required for proper tracking
-- System will try partial matching if name is truncated
-
----
-
-## 📊 What Happens When
-
-### Successful Match (No Logs)
-- Character ID found in AllianceAuth → **credited automatically**
-- Character name parsed and matched → **credited with info log**
-
-### Failed Match (Logged)
-- Character not in system AND name not in reason → **logged as "Unmatched"**
-- Name too short (< 3 chars) → **logged as "Unmatched"**
-- Multiple characters with same name → **logged as "Unmatched"**
-
-Admins should review unmatched donations periodically and manually credit if needed.
-
----
-
-## ⚙️ Configuration Tips
-
-### Recommended Phrase Settings
-```python
-# Good - Short and clear
-MININGTAXES_PHRASE = "TAX"        # Leaves 28 chars for character name
-MININGTAXES_PHRASE = "MOON"       # Leaves 27 chars for character name
-
-# Avoid - Too long
-MININGTAXES_PHRASE = "MININGTAX"  # Only 22 chars left for name
-```
-
-### Empty Phrase (Process All Donations)
-```python
-MININGTAXES_PHRASE = ""  # No filtering, all player_donations processed
-```
-
-With empty phrase, players just enter their character name in the reason field.
-
-You should see: `INVALID_TYPE_IDS = {90665}`
-
----
-
-## 📋 What Changed?
-The patch adds error handling to skip invalid type IDs:
-
-1. **Added import:** `from bravado.exception import HTTPNotFound`
-2. **Created blacklist:** `INVALID_TYPE_IDS = {90665}`
-3. **Added try-except blocks** to catch 404 errors and log warnings instead of crashing
-
 ---
 
 ## ℹ️ Notes
-- This fix is for type **90665** ("QA Badly Authored Prismaticite")
-- Other invalid IDs can be added to the blacklist if needed
-- The fix is based on miningtaxes version **1.4.34**
-2. Copy to: `/home/allianceauth/.local/lib/python3.11/site-packages/miningtaxes/tasks.py` in all containers
+
+- If a user has not linked their Discord account in Alliance Auth, the DM is skipped with a warning log — no error is raised.
+- The type 90665 skip is handled inline in `update_all_prices`. No configuration is needed.
+- This patch is based on aa-miningtaxes **1.4.34**. If the upstream version changes significantly, review for conflicts before applying.
