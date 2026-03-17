@@ -260,6 +260,7 @@ def apply_interest_and_notify(self):
             continue
 
         best_char.give_credit(-1.0 * interest, "interest")
+        best_char.precalc_all()
         new_balance = row["balance"] + interest
         title = "Taxes are overdue — interest has been applied!"
         message = (
