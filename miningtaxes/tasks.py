@@ -365,6 +365,24 @@ def precalcs(self, output):
     logger.info("Finished precalc, updates complete")
 
 
+@shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
+def run_precalcs(self):
+    """Standalone precalc task — recalculates all balances and Stats.
+    Schedule this ~2 hours after update_daily so it always runs even if
+    any update_character subtask failed and broke the chord callback."""
+    logger.info("run_precalcs: Adding Corp Moon Taxes")
+    add_corp_moon_taxes()
+    logger.info("run_precalcs: Linking Tax Payments")
+    add_tax_credits()
+    logger.info("run_precalcs: Running each character's precalc")
+    for character in Character.objects.all():
+        character.precalc_all()
+    logger.info("run_precalcs: Running Stats Precalc")
+    s = Stats.load()
+    s.precalc_all()
+    logger.info("run_precalcs: Finished")
+
+
 def valid_janice_api_key():
     c = requests.get(
         "https://janice.e-351.com/api/rest/v2/markets",
