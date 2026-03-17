@@ -178,6 +178,98 @@ def apply_interest(self):
                 "red"
             )
 
+
+@shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
+def notify_taxes_due_first(self):
+    """2nd of month: notify all users with a balance >= 1 ISK."""
+    from django.contrib.auth.models import User
+
+    s = Stats.load()
+    s.calc_admin_main_json()
+    arr = s.get_admin_main_json()
+
+    for row in arr:
+        if row["balance"] < 1:
+            continue
+        try:
+            u = User.objects.get(id=row["user"])
+        except Exception:
+            logger.warning(f"could not find user: {row['user']}")
+            continue
+        title = "Taxes are due!"
+        message = MININGTAXES_PING_FIRST_MSG.format(row["balance"])
+        notify(user=u, title=title, message=message, level="INFO")
+        send_discord_dm(u, title, message, "yellow")
+
+
+@shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
+def notify_taxes_due_second(self):
+    """15th of month: final warning before interest is applied tomorrow."""
+    from django.contrib.auth.models import User
+
+    s = Stats.load()
+    s.calc_admin_main_json()
+    arr = s.get_admin_main_json()
+
+    for row in arr:
+        if row["balance"] < 1:
+            continue
+        try:
+            u = User.objects.get(id=row["user"])
+        except Exception:
+            logger.warning(f"could not find user: {row['user']}")
+            continue
+        title = "Taxes are due — last chance before interest is applied!"
+        message = MININGTAXES_PING_SECOND_MSG.format(row["balance"])
+        notify(user=u, title=title, message=message, level="WARN")
+        send_discord_dm(u, title, message, "orange")
+
+
+@shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
+def apply_interest_and_notify(self):
+    """16th of month: apply interest to all users still carrying a balance."""
+    from django.contrib.auth.models import User
+
+    tax_settings = Settings.load()
+    s = Stats.load()
+    s.calc_admin_main_json()
+    arr = s.get_admin_main_json()
+
+    for row in arr:
+        if row["balance"] < 1:
+            continue
+        interest = round(row["balance"] * tax_settings.interest_rate / 100.0, 2)
+        if interest < 1:
+            continue
+        try:
+            u = User.objects.get(id=row["user"])
+        except Exception:
+            logger.warning(f"could not find user: {row['user']}")
+            continue
+
+        # Apply the interest charge to the character with the highest balance.
+        best_char = None
+        best_bal = -1
+        for char in Character.objects.filter(user=u):
+            bal = char.get_lifetime_taxes() - char.get_lifetime_credits()
+            if bal > best_bal:
+                best_bal = bal
+                best_char = char
+        if best_char is None:
+            logger.warning(f"no characters found for user: {u}")
+            continue
+
+        best_char.give_credit(-1.0 * interest, "interest")
+        new_balance = row["balance"] + interest
+        title = "Taxes are overdue — interest has been applied!"
+        message = (
+            MININGTAXES_PING_INTEREST_APPLIED.format(interest)
+            + f"\nNew balance owed: {new_balance:,.2f} ISK"
+        )
+        notify(user=u, title=title, message=message, level="WARN")
+        send_discord_dm(u, title, message, "red")
+
+
 @shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
 def auto_add_chars(self):
     from django.db import transaction
