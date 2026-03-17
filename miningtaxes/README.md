@@ -91,15 +91,9 @@ The patch will persist across restarts and container rebuilds as long as the vol
 
 ## 📅 Scheduling
 
-Add all of the following to `local.py`. The `miningtaxes_update_daily` entry is **required** — it is not self-registered by the plugin.
+Add the following to `local.py`. **Do not add `miningtaxes_update_daily`** — the daily ESI update is self-registered by the plugin via Django's periodic task admin and adding it to `local.py` will cause a conflict that breaks Alliance Auth on startup.
 
 ```python
-# Daily ESI data pull — required, not self-registered by the plugin
-CELERYBEAT_SCHEDULE['miningtaxes_update_daily'] = {
-    'task': 'miningtaxes.tasks.update_daily',
-    'schedule': crontab(minute=0, hour='1'),  # 1:00 AM UTC
-}
-
 # Safety net recalc — runs even if update_daily's chord callback failed
 CELERYBEAT_SCHEDULE['miningtaxes_run_precalcs'] = {
     'task': 'miningtaxes.tasks.run_precalcs',
