@@ -50,8 +50,6 @@ def discord_bot_active():
 
 if discord_bot_active():
     import aadiscordbot.tasks
-    from aadiscordbot.cogs.utils.exceptions import NotAuthenticated
-    from aadiscordbot.utils.auth import get_discord_user_id
     from discord import Color, Embed
 
 logger = get_extension_logger(__name__)
