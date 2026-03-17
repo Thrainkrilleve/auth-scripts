@@ -44,7 +44,7 @@ class Command(BaseCommand):
         arr = s.get_admin_main_json()
         count = 0
         for row in arr:
-            if row["balance"] <= 0:
+            if row["balance"] < 1:
                 continue
             try:
                 u = User.objects.get(id=row["user"])
