@@ -56,24 +56,17 @@ if discord_bot_active():
 
 logger = get_extension_logger(__name__)
 
-def send_discord_dm(user, title, message, color):
+def send_discord_dm(user, title, message, color="blue"):
     if discord_bot_active():
         try:
+            color_obj = getattr(Color, color, Color.blue)()
             e = Embed(
                 title=title,
                 description=message,
-                color=color
+                color=color_obj
             )
-            try:
-                aadiscordbot.tasks.send_message.delay(
-                    user_id=get_discord_user_id(user),
-                    embed=e
-                )
-                logger.info(
-                    f"sent discord ping to {user} - {message}"
-                )
-            except NotAuthenticated:
-                logger.warning(f"Unable to ping {user} - {message}")
+            aadiscordbot.tasks.send_message(user=user, embed=e)
+            logger.info(f"sent discord ping to {user} - {message}")
 
         except Exception as e:
             logger.error(e, exc_info=1)
@@ -119,7 +112,7 @@ def notify_taxes_due(self):
                 u,
                 title,
                 message,
-                Color.yellow()
+                "yellow"
             )
 
 @shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
@@ -135,7 +128,7 @@ def notify_second_taxes_due(self):
                 u,
                 title,
                 message,
-                Color.orange()
+                "orange"
             )
 
 
@@ -162,7 +155,7 @@ def notify_current_taxes_threshold(self):
                 u,
                 title,
                 message,
-                Color.yellow()
+                "yellow"
             )
 
 
@@ -184,7 +177,7 @@ def apply_interest(self):
                 u,
                 title,
                 message,
-                Color.red()
+                "red"
             )
 
 @shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
