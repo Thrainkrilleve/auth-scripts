@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from ...tasks import (
+from miningtaxes.tasks import (
     apply_interest,
     notify_current_taxes_threshold,
     notify_second_taxes_due,
