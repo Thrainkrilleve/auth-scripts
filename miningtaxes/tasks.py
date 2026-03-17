@@ -184,9 +184,11 @@ def notify_taxes_due_first(self):
     """2nd of month: notify all users with a balance >= 1 ISK."""
     from django.contrib.auth.models import User
 
+    logger.info("notify_taxes_due_first: starting")
     s = Stats.load()
     s.calc_admin_main_json()
     arr = s.get_admin_main_json()
+    notified = 0
 
     for row in arr:
         if row["balance"] < 1:
@@ -200,6 +202,9 @@ def notify_taxes_due_first(self):
         message = MININGTAXES_PING_FIRST_MSG.format(row["balance"])
         notify(user=u, title=title, message=message, level="INFO")
         send_discord_dm(u, title, message, "yellow")
+        notified += 1
+
+    logger.info(f"notify_taxes_due_first: finished, notified {notified} users")
 
 
 @shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
@@ -207,9 +212,11 @@ def notify_taxes_due_second(self):
     """15th of month: final warning before interest is applied tomorrow."""
     from django.contrib.auth.models import User
 
+    logger.info("notify_taxes_due_second: starting")
     s = Stats.load()
     s.calc_admin_main_json()
     arr = s.get_admin_main_json()
+    notified = 0
 
     for row in arr:
         if row["balance"] < 1:
@@ -223,6 +230,9 @@ def notify_taxes_due_second(self):
         message = MININGTAXES_PING_SECOND_MSG.format(row["balance"])
         notify(user=u, title=title, message=message, level="WARN")
         send_discord_dm(u, title, message, "orange")
+        notified += 1
+
+    logger.info(f"notify_taxes_due_second: finished, notified {notified} users")
 
 
 @shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
@@ -230,10 +240,12 @@ def apply_interest_and_notify(self):
     """16th of month: apply interest to all users still carrying a balance."""
     from django.contrib.auth.models import User
 
+    logger.info("apply_interest_and_notify: starting")
     tax_settings = Settings.load()
     s = Stats.load()
     s.calc_admin_main_json()
     arr = s.get_admin_main_json()
+    notified = 0
 
     for row in arr:
         if row["balance"] < 1:
@@ -269,6 +281,9 @@ def apply_interest_and_notify(self):
         )
         notify(user=u, title=title, message=message, level="WARN")
         send_discord_dm(u, title, message, "red")
+        notified += 1
+
+    logger.info(f"apply_interest_and_notify: finished, notified {notified} users")
 
 
 @shared_task(**{**TASK_DEFAULT_KWARGS, **{"bind": True}})
